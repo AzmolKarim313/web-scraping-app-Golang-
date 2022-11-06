@@ -3,7 +3,10 @@ package main
 import (
 	"fmt"
 	"log"
+
+	// "reflect"
 	"strconv"
+	"time"
 
 	"github.com/360EntSecGroup-Skylar/excelize"
 	"github.com/gocolly/colly"
@@ -27,6 +30,8 @@ func main() {
 
 	c := colly.NewCollector()
 
+	c.SetRequestTimeout(200 * time.Second)
+
 	productCounter := 1
 
 	// Called before a request
@@ -36,7 +41,9 @@ func main() {
 
 	// Called if error occured during the request
 	c.OnError(func(_ *colly.Response, err error) {
+		log.Println("========== ERROR START ==========")
 		log.Println("Something went wrong:", err)
+		log.Println("========== ERROR END ==========")
 	})
 
 	// Called after response received
@@ -63,10 +70,10 @@ func main() {
 		})
 	})
 
-	// c.OnHTML("a.s-pagination-next", func(e *colly.HTMLElement) {
-	// 	nextPage := e.Request.AbsoluteURL(e.Attr("href"))
-	// 	c.Visit(nextPage)
-	// })
+	c.OnHTML("a.s-pagination-next", func(e *colly.HTMLElement) {
+		nextPage := e.Request.AbsoluteURL(e.Attr("href"))
+		c.Visit(nextPage)
+	})
 
 	c.OnHTML("table.a-normal.a-spacing-micro", func(m *colly.HTMLElement) {
 		var property = map[string]string{}
@@ -103,7 +110,9 @@ func main() {
 		return
 	}
 
-	writeExcelFile(columns, products)
+	if len(products) > 1 {
+		writeExcelFile(columns, products)
+	}
 
 }
 
@@ -192,3 +201,20 @@ func writeExcelFile(columns []string, datas []product) {
 		log.Fatal(err)
 	}
 }
+
+// func unique(s []product) []product {
+// 	var results []product
+// 	for _, str := range s {
+// 		if len(results) == 0 {
+// 			results = append(results, str)
+// 		}
+// 		for _, result := range results {
+// 			if reflect.DeepEqual(result, str) {
+// 				continue
+// 			} else {
+// 				results = append(results, str)
+// 			}
+// 		}
+// 	}
+// 	return results
+// }
