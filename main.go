@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	// "reflect"
+	"reflect"
 	"strconv"
 	"time"
 
@@ -40,10 +40,15 @@ func main() {
 	})
 
 	// Called if error occured during the request
-	c.OnError(func(_ *colly.Response, err error) {
+	c.OnError(func(r *colly.Response, err error) {
 		log.Println("========== ERROR START ==========")
-		log.Println("Something went wrong:", err)
+		log.Printf("Something went wrong: \nCode : %v\nMessagr : %v\n", r.StatusCode, err)
 		log.Println("========== ERROR END ==========")
+
+		reVisit := r.Request.URL.String()
+		fmt.Println("Re-Visiting", reVisit)
+		c.AllowURLRevisit = true
+		c.Visit(reVisit)
 	})
 
 	// Called after response received
@@ -99,6 +104,9 @@ func main() {
 	c.OnScraped(func(r *colly.Response) {
 		fmt.Println("Finished", r.Request.URL)
 		products = append(products, product)
+
+		c.AllowURLRevisit = false
+
 	})
 
 	// Start scraping on DOMAIN_NAME
@@ -111,7 +119,7 @@ func main() {
 	}
 
 	if len(products) > 1 {
-		writeExcelFile(columns, products)
+		writeExcelFile(columns, unique(products))
 	}
 
 }
@@ -202,19 +210,21 @@ func writeExcelFile(columns []string, datas []product) {
 	}
 }
 
-// func unique(s []product) []product {
-// 	var results []product
-// 	for _, str := range s {
-// 		if len(results) == 0 {
-// 			results = append(results, str)
-// 		}
-// 		for _, result := range results {
-// 			if reflect.DeepEqual(result, str) {
-// 				continue
-// 			} else {
-// 				results = append(results, str)
-// 			}
-// 		}
-// 	}
-// 	return results
-// }
+func unique(s []product) []product {
+	var results []product
+	for _, product := range s {
+		check := false
+
+		for _, unique := range results{
+			if reflect.DeepEqual(product, unique){
+				check = true
+				break
+			}
+		}
+		
+		if !check {
+			results = append(results, product)
+		}
+	}
+	return results
+}
