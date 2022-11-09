@@ -93,6 +93,7 @@ func main() {
 
 	c.OnHTML("a.s-pagination-next", func(e *colly.HTMLElement) {
 		nextPage := e.Request.AbsoluteURL(e.Attr("href"))
+		fmt.Printf("Next Page : %v\n", nextPage)
 		c.Visit(nextPage)
 	})
 
@@ -111,9 +112,9 @@ func main() {
 		return
 	}
 
-	fmt.Printf("\nAll Products are : %v\n", products)
+	// fmt.Printf("\nAll Products are : %v\n", products)
 
-	fmt.Printf("\nColumns are : %v\n", columns)
+	// fmt.Printf("\nColumns are : %v\n", columns)
 
 	// writeExcelFile(columns, products)
 
