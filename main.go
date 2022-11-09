@@ -17,7 +17,8 @@ type product struct {
 	ProductName string
 	Rating      string
 	Price       string
-	Property    map[string]string
+	// LinkURL     string
+	Property map[string]string
 }
 
 const DOMAIN_NAME = "https://www.amazon.com"
@@ -32,8 +33,6 @@ func main() {
 
 	c.SetRequestTimeout(200 * time.Second)
 
-	productCounter := 1
-
 	// Called before a request
 	c.OnRequest(func(r *colly.Request) {
 		fmt.Println("Visiting", r.URL)
@@ -46,7 +45,7 @@ func main() {
 		log.Println("========== ERROR END ==========")
 
 		reVisit := r.Request.URL.String()
-		fmt.Println("Re-Visiting", reVisit)
+		fmt.Println("##### Re-Visiting URL : ", reVisit)
 		c.AllowURLRevisit = true
 		c.Visit(reVisit)
 	})
@@ -56,21 +55,38 @@ func main() {
 		fmt.Println("Visited", r.Request.URL)
 	})
 
+	c.OnHTML("table.a-keyvalue.prodDetTable", func(m *colly.HTMLElement) {
+		var datas = map[string]string{}
+
+		m.ForEach("tr", func(i int, h *colly.HTMLElement) {
+
+			column := h.ChildText("th.a-color-secondary.a-size-base.prodDetSectionEntry")
+
+			value := h.ChildText("td.a-size-base.prodDetAttrValue")
+
+			if len(value) > 0 {
+				datas[column] = value
+			}
+		})
+		if len(datas) > 0 {
+			product.Property = datas
+		}
+	})
+
 	// Called right after OnResponse if the received content is HTML
 	c.OnHTML("div.s-main-slot.s-result-list.s-search-results.sg-row", func(e *colly.HTMLElement) {
 		e.ForEach("div.a-section.a-spacing-small.a-spacing-top-small", func(_ int, h *colly.HTMLElement) {
 			name := h.ChildText("span.a-size-medium.a-color-base.a-text-normal")
 			stars := h.ChildText("span.a-icon-alt")
 			price := h.ChildText("span.a-price-whole") + h.ChildText("span.a-price-fraction")
-			linkURL := DOMAIN_NAME + h.ChildAttr("a.a-link-normal.s-underline-text.s-underline-link-text.s-link-style.a-text-normal", "href")
+			linkURL := h.ChildAttr("a.a-link-normal.s-underline-text.s-underline-link-text.s-link-style.a-text-normal", "href")
 
 			if name != "" {
 				product.ProductName = name
 				product.Rating = stars
 				product.Price = price
 
-				h.Request.Visit(linkURL)
-				productCounter++
+				h.Request.Visit(DOMAIN_NAME + linkURL)
 			}
 		})
 	})
@@ -80,33 +96,10 @@ func main() {
 		c.Visit(nextPage)
 	})
 
-	c.OnHTML("table.a-normal.a-spacing-micro", func(m *colly.HTMLElement) {
-		var property = map[string]string{}
-		m.ForEach("tr", func(i int, h *colly.HTMLElement) {
-			var column, value string
-
-			h.ForEach("td.a-span3", func(i int, h *colly.HTMLElement) {
-				column = h.ChildText("span.a-text-bold")
-			})
-
-			h.ForEach("td.a-span9", func(i int, h *colly.HTMLElement) {
-				value = h.ChildText("span.a-size-base")
-			})
-
-			property[column] = value
-		})
-
-		product.Property = property
-
-	})
-
 	// Called after OnHTML =>OnXML callbacks
 	c.OnScraped(func(r *colly.Response) {
-		fmt.Println("Finished", r.Request.URL)
 		products = append(products, product)
-
 		c.AllowURLRevisit = false
-
 	})
 
 	// Start scraping on DOMAIN_NAME
@@ -117,6 +110,12 @@ func main() {
 	if err != nil {
 		return
 	}
+
+	fmt.Printf("\nAll Products are : %v\n", products)
+
+	fmt.Printf("\nColumns are : %v\n", columns)
+
+	// writeExcelFile(columns, products)
 
 	if len(products) > 1 {
 		writeExcelFile(columns, unique(products))
@@ -141,7 +140,12 @@ func inputData(c *colly.Collector) {
 }
 
 func getColumnNames(datas []product) ([]string, error) {
-	columnNames := []string{"Product Name", "Rating", "Price"}
+	columnNames := []string{
+		"Product Name",
+		"Rating",
+		"Price",
+		// "Link URL",
+	}
 
 	for _, data := range datas {
 		keys := maps.Keys(data.Property)
@@ -215,13 +219,13 @@ func unique(s []product) []product {
 	for _, product := range s {
 		check := false
 
-		for _, unique := range results{
-			if reflect.DeepEqual(product, unique){
+		for _, unique := range results {
+			if reflect.DeepEqual(unique, product) {
 				check = true
 				break
 			}
 		}
-		
+
 		if !check {
 			results = append(results, product)
 		}
